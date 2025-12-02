@@ -1,4 +1,4 @@
-# 🚀 Flask MongoDB Kubernetes Project
+#  Flask MongoDB Kubernetes Project
 
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![Python](https://img.shields.io/badge/Python-3.11-blue?style=flat&logo=python&logoColor=white)](https://www.python.org/)
