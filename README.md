@@ -126,6 +126,9 @@ flask-mongo-k8s/
 │   ├── DNS-RESOLUTION.md         # DNS configuration guide
 │   ├── RESOURCE-MANAGEMENT.md    # Resource management guide
 │   └── TESTING-RESULTS.md        # Testing scenarios and results
+├── AUTOSCALING-DEMO.md           # Detailed autoscaling demonstration
+├── load-test.bat                 # Load testing script for Windows
+├── monitor-hpa.bat               # HPA monitoring script for Windows
 └── README.md                     # This file
 ```
 
@@ -241,6 +244,76 @@ kubectl logs statefulset/mongodb -n flask-mongo-demo
 kubectl top pods -n flask-mongo-demo
 kubectl describe hpa flask-app-hpa -n flask-mongo-demo
 ```
+
+## 📈 Horizontal Pod Autoscaling (HPA)
+
+The application includes Horizontal Pod Autoscaling to automatically adjust the number of Flask application pods based on CPU utilization.
+
+### HPA Configuration
+- **Min Replicas**: 2 (ensures high availability)
+- **Max Replicas**: 5 (prevents resource exhaustion)
+- **CPU Threshold**: 70% (triggers scaling when CPU usage exceeds 70%)
+- **Target Deployment**: flask-app
+
+### Autoscaling Results
+
+**Initial State:**
+```bash
+$ kubectl get hpa -n flask-mongo-demo
+NAME            REFERENCE              TARGETS       MINPODS   MAXPODS   REPLICAS
+flask-app-hpa   Deployment/flask-app   cpu: 0%/70%   2         5         2
+```
+
+**Scale-Up Demonstration:**
+```bash
+# During high load, HPA automatically creates additional pods
+$ kubectl get pods -n flask-mongo-demo
+NAME                         READY   STATUS    RESTARTS   AGE
+flask-app-78554b9f79-ctqh9   1/1     Running   0          31m
+flask-app-78554b9f79-j5tqq   1/1     Running   0          30m
+flask-app-78554b9f79-2rmf6   1/1     Running   0          37s   # New pod
+flask-app-78554b9f79-tm7nf   1/1     Running   0          37s   # New pod
+mongodb-0                    1/1     Running   0          40m
+```
+
+**Scale-Down Process:**
+```bash
+# When load decreases, HPA gracefully terminates excess pods
+$ kubectl get pods -n flask-mongo-demo
+NAME                         READY   STATUS        RESTARTS   AGE
+flask-app-78554b9f79-2rmf6   1/1     Terminating   0          58s   # Terminating
+flask-app-78554b9f79-ctqh9   1/1     Running       0          31m
+flask-app-78554b9f79-j5tqq   1/1     Running       0          31m
+flask-app-78554b9f79-tm7nf   1/1     Terminating   0          58s   # Terminating
+```
+
+### Load Testing for Autoscaling
+```bash
+# Generate load to test autoscaling
+for i in {1..100}; do
+  curl -X POST http://$(minikube ip):30001/data \
+    -H "Content-Type: application/json" \
+    -d "{\"load-test\":\"$i\",\"timestamp\":\"$(date)\"}"
+done
+```
+
+### Resource Monitoring
+```bash
+$ kubectl top pods -n flask-mongo-demo
+NAME                         CPU(cores)   MEMORY(bytes)   
+flask-app-78554b9f79-ctqh9   1m           24Mi
+flask-app-78554b9f79-j5tqq   2m           24Mi
+mongodb-0                    7m           336Mi
+```
+
+**Key Autoscaling Features:**
+- ✅ **Automatic scaling** based on CPU metrics
+- ✅ **Configurable thresholds** for scale-up/down decisions
+- ✅ **Resource efficiency** by scaling down during low usage
+- ✅ **High availability** maintained with minimum replicas
+- ✅ **Cost optimization** with maximum replica limits
+
+📋 **Detailed Autoscaling Documentation**: See [AUTOSCALING-DEMO.md](AUTOSCALING-DEMO.md) for comprehensive test results and screenshots.
 
 ## 🛠️ Troubleshooting
 
