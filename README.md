@@ -250,70 +250,88 @@ kubectl describe hpa flask-app-hpa -n flask-mongo-demo
 The application includes Horizontal Pod Autoscaling to automatically adjust the number of Flask application pods based on CPU utilization.
 
 ### HPA Configuration
-- **Min Replicas**: 2 (ensures high availability)
-- **Max Replicas**: 5 (prevents resource exhaustion)
-- **CPU Threshold**: 70% (triggers scaling when CPU usage exceeds 70%)
-- **Target Deployment**: flask-app
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| **Min Replicas** | 2 | High availability |
+| **Max Replicas** | 5 | Resource control |
+| **CPU Threshold** | 70% | Scaling trigger |
+| **Target** | flask-app | Deployment to scale |
 
-### Autoscaling Results
+### 📊 Live Autoscaling Results
 
-**Initial State:**
+#### 1. **Complete Deployment Status**
 ```bash
-$ kubectl get hpa -n flask-mongo-demo
-NAME            REFERENCE              TARGETS       MINPODS   MAXPODS   REPLICAS
-flask-app-hpa   Deployment/flask-app   cpu: 0%/70%   2         5         2
+PS C:\Users\ASUS\Desktop\flask-mongodb-k8s> kubectl get all -n flask-mongo-demo
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/flask-app        2/2     2            2           6h10m
+
+NAME                                   DESIRED   CURRENT   READY   AGE
+replicaset.apps/flask-app-78554b9f79   2         2         2       37m
+
+NAME                       READY   AGE
+statefulset.apps/mongodb   1/1     49m
+
+NAME                                                REFERENCE              TARGETS       MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/flask-app-hpa   Deployment/flask-app   cpu: 1%/70%   2         5         2          6h10m
 ```
+✅ **Status**: 2 Flask pods running, HPA active with 1%/70% CPU usage
 
-**Scale-Up Demonstration:**
+#### 2. **HPA Configuration Details**
 ```bash
-# During high load, HPA automatically creates additional pods
-$ kubectl get pods -n flask-mongo-demo
+PS C:\Users\ASUS\Desktop\flask-mongodb-k8s> kubectl describe hpa flask-app-hpa -n flask-mongo-demo
+Name:                     flask-app-hpa
+Namespace:                flask-mongo-demo
+Reference:                Deployment/flask-app
+Metrics:                  ( current / target )
+  resource cpu on pods    (as a percentage of request):  0% (1m) / 70%
+Min replicas:             2
+Max replicas:             5
+Deployment pods:          2 current / 2 desired
+Conditions:
+  Type            Status  Reason              Message
+  ----            ------  ------              -------
+  AbleToScale     True    ReadyForNewScale    recommended size matches current size
+  ScalingActive   True    ValidMetricFound    the HPA was able to successfully calculate a replica count
+  ScalingLimited  True    TooFewReplicas      the desired replica count is less than the minimum replica count
+```
+✅ **Status**: HPA ready to scale, currently at minimum replicas due to low CPU usage
+
+#### 3. **Resource Utilization**
+```bash
+PS C:\Users\ASUS\Desktop\flask-mongodb-k8s> kubectl top pods -n flask-mongo-demo
+NAME                         CPU(cores)   MEMORY(bytes)
+flask-app-78554b9f79-ctqh9   2m           24Mi
+flask-app-78554b9f79-j5tqq   1m           24Mi
+mongodb-0                    7m           338Mi
+```
+✅ **Status**: Efficient resource usage - Flask pods using minimal CPU, ready to scale up when needed
+
+#### 4. **Pod Status Summary**
+```bash
+PS C:\Users\ASUS\Desktop\flask-mongodb-k8s> kubectl get pods -n flask-mongo-demo
 NAME                         READY   STATUS    RESTARTS   AGE
-flask-app-78554b9f79-ctqh9   1/1     Running   0          31m
-flask-app-78554b9f79-j5tqq   1/1     Running   0          30m
-flask-app-78554b9f79-2rmf6   1/1     Running   0          37s   # New pod
-flask-app-78554b9f79-tm7nf   1/1     Running   0          37s   # New pod
-mongodb-0                    1/1     Running   0          40m
+flask-app-78554b9f79-ctqh9   1/1     Running   0          40m
+flask-app-78554b9f79-j5tqq   1/1     Running   0          40m
+mongodb-0                    1/1     Running   0          50m
 ```
+✅ **Status**: All pods healthy and running, stable deployment
 
-**Scale-Down Process:**
-```bash
-# When load decreases, HPA gracefully terminates excess pods
-$ kubectl get pods -n flask-mongo-demo
-NAME                         READY   STATUS        RESTARTS   AGE
-flask-app-78554b9f79-2rmf6   1/1     Terminating   0          58s   # Terminating
-flask-app-78554b9f79-ctqh9   1/1     Running       0          31m
-flask-app-78554b9f79-j5tqq   1/1     Running       0          31m
-flask-app-78554b9f79-tm7nf   1/1     Terminating   0          58s   # Terminating
-```
+### 🎯 Autoscaling Summary
 
-### Load Testing for Autoscaling
-```bash
-# Generate load to test autoscaling
-for i in {1..100}; do
-  curl -X POST http://$(minikube ip):30001/data \
-    -H "Content-Type: application/json" \
-    -d "{\"load-test\":\"$i\",\"timestamp\":\"$(date)\"}"
-done
-```
+| Metric | Current | Target | Status |
+|--------|---------|--------|--------|
+| **CPU Usage** | 1-2% | 70% threshold | ✅ Efficient |
+| **Replicas** | 2/2 running | Min: 2, Max: 5 | ✅ At minimum |
+| **Memory** | ~24Mi per pod | Limit: 500Mi | ✅ Optimized |
+| **Scaling** | Ready to trigger | On CPU >70% | ✅ Active |
 
-### Resource Monitoring
-```bash
-$ kubectl top pods -n flask-mongo-demo
-NAME                         CPU(cores)   MEMORY(bytes)   
-flask-app-78554b9f79-ctqh9   1m           24Mi
-flask-app-78554b9f79-j5tqq   2m           24Mi
-mongodb-0                    7m           336Mi
-```
+**🔄 Autoscaling Behavior:**
+- **Scale Up**: When CPU > 70% → Creates new pods automatically
+- **Scale Down**: When CPU < 70% for 5+ min → Terminates excess pods
+- **Min Replicas**: Always maintains 2 pods for availability
+- **Max Replicas**: Caps at 5 pods to control resource usage
 
-**Key Autoscaling Features:**
-- ✅ **Automatic scaling** based on CPU metrics
-- ✅ **Configurable thresholds** for scale-up/down decisions
-- ✅ **Resource efficiency** by scaling down during low usage
-- ✅ **High availability** maintained with minimum replicas
-- ✅ **Cost optimization** with maximum replica limits
-
-📋 **Detailed Autoscaling Documentation**: See [AUTOSCALING-DEMO.md](AUTOSCALING-DEMO.md) for comprehensive test results and screenshots.
+📋 **Complete Test Documentation**: [AUTOSCALING-DEMO.md](AUTOSCALING-DEMO.md)
 
 ## 🛠️ Troubleshooting
 
