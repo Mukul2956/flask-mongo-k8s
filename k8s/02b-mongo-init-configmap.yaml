@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongo-init-scripts
+  namespace: flask-mongo-demo
+data:
+  init-user.sh: |
+    #!/bin/bash
+    set -e
+    echo "===> Creating application user in MongoDB (if not exists)..."
+    mongosh admin -u root -p supersecret <<EOF
+    use admin
+    try {
+      db.createUser({
+        user: "${MONGO_USERNAME}",
+        pwd: "${MONGO_PASSWORD}",
+        roles: [{ role: "readWrite", db: "flask_db" }]
+      });
+      print("User ${MONGO_USERNAME} created successfully");
+    } catch(e) {
+      if (e.code === 51003) {
+        print("User ${MONGO_USERNAME} already exists");
+      } else {
+        throw e;
+      }
+    }
+    EOF
+    echo "===> Done."
