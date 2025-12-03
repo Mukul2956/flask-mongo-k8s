@@ -451,4 +451,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built with ❤️ for learning Kubernetes and microservices architecture**
+**Built with ❤️ for demonstrating Kubernetes and microservices architecture**
